@@ -19,19 +19,47 @@ inline Adafruit_SSD1306& iotDisplay() {
   return display;
 }
 
+inline Adafruit_SSD1306& iotDisplay2() {
+  static Adafruit_SSD1306 display(
+      IOT_SCREEN_WIDTH,
+      IOT_SCREEN_HEIGHT,
+      &SPI,
+      IoTPins::OLED_DC,
+      IoTPins::OLED_RST,
+      IoTPins::OLED_2_CS);
+  return display;
+}
+
 inline bool iotInitDisplay() {
-  auto& display = iotDisplay();
-  if (!display.begin(SSD1306_SWITCHCAPVCC)) {
+  const bool firstStarted = iotDisplay().begin(SSD1306_SWITCHCAPVCC);
+  if (!firstStarted) {
     Serial.println("OLED init failed. Check SPI wiring and pin map.");
-    return false;
   }
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println("IoT Kit");
-  display.display();
-  return true;
+
+  const bool secondStarted = iotDisplay2().begin(SSD1306_SWITCHCAPVCC);
+  if (!secondStarted) {
+    Serial.println("Second OLED init failed. Check its CS wiring and pin map.");
+  }
+
+  if (firstStarted) {
+    auto& display = iotDisplay();
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println("IoT Kit");
+    display.display();
+  }
+  if (secondStarted) {
+    auto& display = iotDisplay2();
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.println("Petometer");
+    display.display();
+  }
+  return firstStarted && secondStarted;
 }
 
 inline void iotDisplayLines(const String& line1,

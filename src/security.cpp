@@ -7,10 +7,12 @@
 #include <Adafruit_BMP280.h>
 #include <SparkFun_ATECCX08a_Arduino_Library.h>
 #include <mbedtls/md.h>
+
 #include "iot_common.h"
 #include "iot_display.h"
 #include "iot_provision.h"
 #include "iot_ca_certs.h"
+#include "interact.h"
 
 // Lab 6 STARTER. Harden It. Complete TODOs 1-6 (TODO 1 is in include/iot_ca_certs.h).
 // Starts from Lab 5 (BMP280 + pot -> HiveMQ Cloud, MQTT over TLS, credentials in NVS,
@@ -352,7 +354,7 @@ bool publishTelemetry() {
   }
   char buf[192];
   snprintf(buf, sizeof buf,
-           "{\"seq\":%lu,\"temp_c\":%s,\"press_hpa\":%s,\"pot_pct\":%d,\"rssi\":%d,\"uptime_s\":%lu}",
+           "{\"seq\":%lu,\"temp_f\":%s,\"press_hpa\":%s,\"pot_pct\":%d,\"rssi\":%d,\"uptime_s\":%lu}",
            (unsigned long)(++seqNo), temp, press, readPotPercent(), (int)WiFi.RSSI(),
            (unsigned long)(millis() / 1000));
   bool ok = mqtt.publish(TOPIC_TELEMETRY.c_str(), buf, false);
@@ -459,6 +461,7 @@ void setup() {
 
   bmpOk = bmp.begin(IoTPins::BMP280_ADDR);
   Serial.println(bmpOk ? "BMP280 OK at 0x76" : "BMP280 not found (temp/pressure will be null)");
+  petBegin();
 
   initSecureElement();
 
@@ -501,12 +504,12 @@ void loop() {
     }
   }
 
-  static uint32_t lastDraw = 0;
-  if (iotEvery(1000, lastDraw)) {
-    const bool w = (WiFi.status() == WL_CONNECTED);
-    iotDisplayLines(String("Lab 6  ") + TEAM_ID,
-                    w ? String("WiFi ok") : String("WiFi: down"),
-                    mqtt.connected() ? String("TLS verified") : String("MQTT: retrying"),
-                    eccSigning ? "signed " + String((unsigned long)sigOk) : String("not signing"));
+  static uint32_t lastPetSample = millis() - 5000;
+  static float petTemperatureF = 0.0f;
+  static bool petTemperatureAvailable = false;
+  if (iotEvery(5000, lastPetSample)) {
+    petTemperatureAvailable = bmpOk;
+    if (petTemperatureAvailable) petTemperatureF = bmp.readTemperature();
   }
+  petUpdate(petTemperatureF, petTemperatureAvailable, readPotPercent());
 }

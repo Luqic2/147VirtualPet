@@ -13,7 +13,6 @@ namespace IoTPins {
   constexpr uint8_t LED_1      = 2;    // Red LED (also the onboard LED on many boards)
   constexpr uint8_t LED_2      = 4;    // Yellow LED
   constexpr uint8_t LED_3      = 15;   // Green LED
-  constexpr uint8_t BUZZER     = 27;   // Passive buzzer, driven with tone()
   constexpr uint8_t BUTTON_1   = 32;   // Use INPUT_PULLUP with button to GND
   constexpr uint8_t BUTTON_2   = 33;   // Use INPUT_PULLUP with button to GND
   constexpr uint8_t POT_ADC    = 34;   // ADC1 input-only pin
@@ -38,6 +37,7 @@ namespace IoTPins {
   constexpr uint8_t OLED_CS    = 5;
   constexpr uint8_t OLED_DC    = 16;
   constexpr uint8_t OLED_RST   = 17;
+  constexpr uint8_t OLED_2_CS  = 27;   // Reuses the buzzer pin
 
   // LoRa SX1276/RFM95-style module pins. Shares SCK/MISO/MOSI with OLED.
   constexpr uint8_t LORA_CS    = 14;
