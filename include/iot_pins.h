@@ -37,7 +37,7 @@ namespace IoTPins {
   constexpr uint8_t OLED_CS    = 5;
   constexpr uint8_t OLED_DC    = 16;
   constexpr uint8_t OLED_RST   = 17;
-  constexpr uint8_t OLED_2_CS  = 27;   // Reuses the buzzer pin
+  constexpr uint8_t OLED_2_CS  = 12;   // Reuses the buzzer pin
 
   // LoRa SX1276/RFM95-style module pins. Shares SCK/MISO/MOSI with OLED.
   constexpr uint8_t LORA_CS    = 14;

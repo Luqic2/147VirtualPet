@@ -453,7 +453,7 @@ void pollConsole() {
 // ============================================================================================
 
 void setup() {
-  iotStartSerial("Lab 6: Harden It");
+  iotStartSerial("Virtual Pet");
   iotInitI2C();   // default 100 kHz: the ATECC608A wake-up pulse relies on it
   iotInitSPI();
   iotInitDisplay();
@@ -509,7 +509,11 @@ void loop() {
   static bool petTemperatureAvailable = false;
   if (iotEvery(5000, lastPetSample)) {
     petTemperatureAvailable = bmpOk;
-    if (petTemperatureAvailable) petTemperatureF = bmp.readTemperature();
+
+    if (petTemperatureAvailable) {
+        float temperatureC = bmp.readTemperature();
+        petTemperatureF = (temperatureC * 9.0f / 5.0f) + 32.0f;
+    }
   }
   petUpdate(petTemperatureF, petTemperatureAvailable, readPotPercent());
 }
