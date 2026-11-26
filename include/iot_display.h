@@ -4,6 +4,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "iot_pins.h"
+#include "serial_logger.h"
 
 constexpr int IOT_SCREEN_WIDTH = 128;
 constexpr int IOT_SCREEN_HEIGHT = 64;
@@ -55,8 +56,8 @@ delay(10);
   bool firstStarted = iotDisplay().begin(SSD1306_SWITCHCAPVCC);
   bool secondStarted = iotDisplay2().begin(SSD1306_SWITCHCAPVCC);
 
-  Serial.printf("First OLED: %s\n", firstStarted ? "OK" : "FAILED");
-  Serial.printf("Second OLED: %s\n", secondStarted ? "OK" : "FAILED");
+  SerialLog.printf("First OLED: %s\n", firstStarted ? "OK" : "FAILED");
+  SerialLog.printf("Second OLED: %s\n", secondStarted ? "OK" : "FAILED");
 
   if (firstStarted) {
     iotDisplay().clearDisplay();

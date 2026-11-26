@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "serial_logger.h"
 
 // -----------------------------------------------------------------------------
 // Serial helpers for provisioning (Lab 5). Given code: you do not need to edit it.
@@ -28,10 +29,10 @@ inline String iotReadLine(uint32_t timeoutMs = 0, size_t maxLen = 96) {
 
 // Print a prompt and read the answer. Leading/trailing spaces are removed.
 inline String iotAsk(const char* prompt) {
-  Serial.print(prompt);
-  Serial.print(" ");
+  SerialLog.print(prompt);
+  SerialLog.print(" ");
   String v = iotReadLine(0);
-  Serial.println();
+  SerialLog.println();
   return v;
 }
 

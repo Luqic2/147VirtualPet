@@ -14,6 +14,8 @@
 #include "iot_ca_certs.h"
 #include "interact.h"
 
+SerialLogger SerialLog;
+
 // Topics (replace T00 with your team ID):
 //   iot/T00/telemetry      JSON, every PERIOD_MS (the exact bytes that get signed)
 //   iot/T00/telemetry/sig  {"seq":42,"alg":"ES256","sig":"<128 hex chars = r||s>"}
@@ -110,21 +112,21 @@ void forgetCredentials() {
   prefs.clear();
   prefs.end();
   creds = Credentials();
-  Serial.println("Credentials erased from NVS.");
+  SerialLog.println("Credentials erased from NVS.");
 }
 
 void printCredentials() {
-  Serial.print("  Wi-Fi SSID    : "); Serial.println(creds.wifiSsid);
-  Serial.print("  Wi-Fi password: "); Serial.println(iotMasked(creds.wifiPass));
-  Serial.print("  MQTT host     : "); Serial.println(creds.mqttHost);
-  Serial.print("  MQTT username : "); Serial.println(creds.mqttUser);
-  Serial.print("  MQTT password : "); Serial.println(iotMasked(creds.mqttPass));
+  SerialLog.print("  Wi-Fi SSID    : "); SerialLog.println(creds.wifiSsid);
+  SerialLog.print("  Wi-Fi password: "); SerialLog.println(iotMasked(creds.wifiPass));
+  SerialLog.print("  MQTT host     : "); SerialLog.println(creds.mqttHost);
+  SerialLog.print("  MQTT username : "); SerialLog.println(creds.mqttUser);
+  SerialLog.print("  MQTT password : "); SerialLog.println(iotMasked(creds.mqttPass));
 }
 
 void runProvisioning() {
-  Serial.println();
-  Serial.println("=== Provisioning ===");
-  Serial.println("Values are stored in this board's NVS flash, never in your source code.");
+  SerialLog.println();
+  SerialLog.println("=== Provisioning ===");
+  SerialLog.println("Values are stored in this board's NVS flash, never in your source code.");
   do {
     creds.wifiSsid = iotAsk("Wi-Fi SSID:");
   } while (creds.wifiSsid.length() == 0);
@@ -137,7 +139,7 @@ void runProvisioning() {
   } while (creds.mqttUser.length() == 0);
   creds.mqttPass = iotAsk("MQTT password:");
   saveCredentials();
-  Serial.println("Saved to NVS:");
+  SerialLog.println("Saved to NVS:");
   printCredentials();
 }
 
@@ -153,10 +155,10 @@ void configureMqtt() {
   // Use WRONG_CA_PEM instead when useWrongCa is true (console command CA WRONG),
   // and print the CA that is being used.
   if (useWrongCa) {
-    Serial.println("TLS: verifying the broker with the WRONG CA (ISRG Root X1): expect a failure");
+    SerialLog.println("TLS: verifying the broker with the WRONG CA (ISRG Root X1): expect a failure");
     net.setCACert(WRONG_CA_PEM);
   } else {
-    Serial.println("TLS: verifying the broker with DigiCert Global Root CA (Let's Encrypt)");
+    SerialLog.println("TLS: verifying the broker with DigiCert Global Root CA (Let's Encrypt)");
     net.setCACert(DIGICERT_GLOBAL_ROOT_CA_PEM);
   }
 
@@ -183,12 +185,12 @@ const char* mqttStateText(int s) {
 }
 
 bool mqttConnect() {
-  Serial.print("MQTT: connecting to ");
-  Serial.print(creds.mqttHost);
-  Serial.print(":");
-  Serial.print(MQTT_PORT);
-  Serial.print(" as ");
-  Serial.println(clientId);
+  SerialLog.print("MQTT: connecting to ");
+  SerialLog.print(creds.mqttHost);
+  SerialLog.print(":");
+  SerialLog.print(MQTT_PORT);
+  SerialLog.print(" as ");
+  SerialLog.println(clientId);
   bool ok = mqtt.connect(clientId.c_str(),
                          creds.mqttUser.c_str(), creds.mqttPass.c_str(),
                          TOPIC_STATUS.c_str(), 1, true, "offline");
@@ -197,10 +199,10 @@ bool mqttConnect() {
     char err[128];
     int code = net.lastError(err, sizeof err);
     if (code != 0) {
-      Serial.print("TLS error ");
-      Serial.print(code);
-      Serial.print(": ");
-      Serial.println(err);
+      SerialLog.print("TLS error ");
+      SerialLog.print(code);
+      SerialLog.print(": ");
+      SerialLog.println(err);
     }
     return false;
   }
@@ -217,14 +219,14 @@ void maintainWiFi() {
   static uint32_t lastBegin = 0;
   static bool started = false, wasUp = false;
   const bool up = (WiFi.status() == WL_CONNECTED);
-  if (up && !wasUp) { Serial.print("Wi-Fi: connected, IP "); Serial.println(WiFi.localIP()); }
-  if (!up && wasUp) Serial.println("Wi-Fi: connection lost");
+  if (up && !wasUp) { SerialLog.print("Wi-Fi: connected, IP "); SerialLog.println(WiFi.localIP()); }
+  if (!up && wasUp) SerialLog.println("Wi-Fi: connection lost");
   wasUp = up;
   if (!up && (!started || millis() - lastBegin >= WIFI_RETRY_MS)) {
     started = true;
     lastBegin = millis();
-    Serial.print("Wi-Fi: connecting to ");
-    Serial.println(creds.wifiSsid);
+    SerialLog.print("Wi-Fi: connecting to ");
+    SerialLog.println(creds.wifiSsid);
     WiFi.begin(creds.wifiSsid.c_str(), creds.wifiPass.c_str());
   }
 }
@@ -235,16 +237,16 @@ void maintainMqtt() {
   if (now - lastMqttTry < backoffMs) return;
   lastMqttTry = now;
   if (mqttConnect()) {
-    Serial.println("MQTT: connected over TLS, broker certificate verified");
+    SerialLog.println("MQTT: connected over TLS, broker certificate verified");
     backoffMs = BACKOFF_START_MS;
     reconnects++;
   } else {
-    Serial.print("MQTT: failed, state ");
-    Serial.println(mqttStateText(mqtt.state()));
+    SerialLog.print("MQTT: failed, state ");
+    SerialLog.println(mqttStateText(mqtt.state()));
     backoffMs = std::min<uint32_t>(backoffMs * 2, BACKOFF_MAX_MS) + (millis() % 500);
-    Serial.print("MQTT: next try in ");
-    Serial.print(backoffMs / 1000.0f, 1);
-    Serial.println(" s");
+    SerialLog.print("MQTT: next try in ");
+    SerialLog.print(backoffMs / 1000.0f, 1);
+    SerialLog.println(" s");
   }
 }
 
@@ -254,30 +256,30 @@ void maintainMqtt() {
 
 void initSecureElement() {
   if (!atecc.begin(IoTPins::ATECC608A_ADDR, Wire, Serial)) {
-    Serial.println("ATECC608A not found at 0x60 (check the Qwiic cable). Continuing without signing.");
+    SerialLog.println("ATECC608A not found at 0x60 (check the Qwiic cable). Continuing without signing.");
     return;
   }
 
   // Read the configuration zone, then check atecc.configLockStatus and
   // atecc.dataOTPLockStatus.
   if (!atecc.readConfigZone(false)) {
-    Serial.println("ATECC608A configuration zone read failed. Continuing without signing.");
+    SerialLog.println("ATECC608A configuration zone read failed. Continuing without signing.");
     return;
   }
 
   char serialHex[SERIAL_NUMBER_SIZE * 2 + 1];
   toHex(atecc.serialNumber, SERIAL_NUMBER_SIZE, serialHex);
-  Serial.print("ATECC608A serial: ");
-  Serial.println(serialHex);
-  Serial.print("  config locked: ");
-  Serial.println(atecc.configLockStatus ? "yes" : "no");
-  Serial.print("  data/OTP locked: ");
-  Serial.println(atecc.dataOTPLockStatus ? "yes" : "no");
-  Serial.print("  slot 0 locked: ");
-  Serial.println(atecc.slot0LockStatus ? "yes" : "no");
+  SerialLog.print("ATECC608A serial: ");
+  SerialLog.println(serialHex);
+  SerialLog.print("  config locked: ");
+  SerialLog.println(atecc.configLockStatus ? "yes" : "no");
+  SerialLog.print("  data/OTP locked: ");
+  SerialLog.println(atecc.dataOTPLockStatus ? "yes" : "no");
+  SerialLog.print("  slot 0 locked: ");
+  SerialLog.println(atecc.slot0LockStatus ? "yes" : "no");
 
   if (!atecc.configLockStatus || !atecc.dataOTPLockStatus || !atecc.slot0LockStatus) {
-    Serial.println("ATECC608A NOT PROVISIONED — ask a TA (do not lock it yourself)");
+    SerialLog.println("ATECC608A NOT PROVISIONED — ask a TA (do not lock it yourself)");
     return;
   }
 
@@ -285,14 +287,14 @@ void initSecureElement() {
   // Copy it to devicePubKey, print it as hex, and set eccSigning = true.
   // (generatePublicKey computes the public half; the private key never leaves the chip.)
   if (!atecc.generatePublicKey(0, false)) {
-    Serial.println("ATECC608A public key read failed. Continuing without signing.");
+    SerialLog.println("ATECC608A public key read failed. Continuing without signing.");
     return;
   }
   memcpy(devicePubKey, atecc.publicKey64Bytes, sizeof devicePubKey);
   char publicKeyHex[sizeof devicePubKey * 2 + 1];
   toHex(devicePubKey, sizeof devicePubKey, publicKeyHex);
-  Serial.print("ATECC608A public key: ");
-  Serial.println(publicKeyHex);
+  SerialLog.print("ATECC608A public key: ");
+  SerialLog.println(publicKeyHex);
   eccSigning = true;
 
 }
@@ -337,10 +339,10 @@ bool publishTelemetry() {
            (unsigned long)(++seqNo), temp, press, readPotPercent(), (int)WiFi.RSSI(),
            (unsigned long)(millis() / 1000));
   bool ok = mqtt.publish(TOPIC_TELEMETRY.c_str(), buf, false);
-  Serial.print(ok ? "PUB " : "PUB FAILED ");
-  Serial.print(TOPIC_TELEMETRY);
-  Serial.print("  ");
-  Serial.println(buf);
+  SerialLog.print(ok ? "PUB " : "PUB FAILED ");
+  SerialLog.print(TOPIC_TELEMETRY);
+  SerialLog.print("  ");
+  SerialLog.println(buf);
 
   if (ok && eccSigning) {
     char sigHex[129];
@@ -349,11 +351,11 @@ bool publishTelemetry() {
       snprintf(sigMsg, sizeof sigMsg, "{\"seq\":%lu,\"alg\":\"ES256\",\"sig\":\"%s\"}",
                (unsigned long)seqNo, sigHex);
       mqtt.publish(TOPIC_SIG.c_str(), sigMsg, false);
-      Serial.print("SIG ");
-      Serial.println(sigHex);
+      SerialLog.print("SIG ");
+      SerialLog.println(sigHex);
       sigOk++;
     } else {
-      Serial.println("SIG FAILED (ATECC608A did not sign)");
+      SerialLog.println("SIG FAILED (ATECC608A did not sign)");
       sigFail++;
     }
   }
@@ -365,18 +367,18 @@ bool publishTelemetry() {
 // ============================================================================================
 
 void printHelp() {
-  Serial.println("Commands: HELP | STATUS | PUB | PUBKEY | CA GOOD | CA WRONG | PROVISION | FORGET");
+  SerialLog.println("Commands: HELP | STATUS | PUB | PUBKEY | CA GOOD | CA WRONG | PROVISION | FORGET");
 }
 
 void printStatus() {
-  Serial.print("Team "); Serial.print(TEAM_ID); Serial.print("  client id "); Serial.println(clientId);
+  SerialLog.print("Team "); SerialLog.print(TEAM_ID); SerialLog.print("  client id "); SerialLog.println(clientId);
   printCredentials();
-  Serial.print("  Wi-Fi: "); Serial.println(WiFi.status() == WL_CONNECTED ? "connected" : "down");
-  Serial.print("  MQTT : "); Serial.println(mqttStateText(mqtt.state()));
-  Serial.print("  TLS CA: "); Serial.println(useWrongCa ? "WRONG CA (demo)" : "ISRG Root X1");
-  Serial.print("  signing: "); Serial.println(eccSigning ? "ATECC608A slot 0" : "off");
-  Serial.print("  published ok/failed: "); Serial.print(pubOk); Serial.print("/"); Serial.print(pubFail);
-  Serial.print("  signed ok/failed: "); Serial.print(sigOk); Serial.print("/"); Serial.println(sigFail);
+  SerialLog.print("  Wi-Fi: "); SerialLog.println(WiFi.status() == WL_CONNECTED ? "connected" : "down");
+  SerialLog.print("  MQTT : "); SerialLog.println(mqttStateText(mqtt.state()));
+  SerialLog.print("  TLS CA: "); SerialLog.println(useWrongCa ? "WRONG CA (demo)" : "ISRG Root X1");
+  SerialLog.print("  signing: "); SerialLog.println(eccSigning ? "ATECC608A slot 0" : "off");
+  SerialLog.print("  published ok/failed: "); SerialLog.print(pubOk); SerialLog.print("/"); SerialLog.print(pubFail);
+  SerialLog.print("  signed ok/failed: "); SerialLog.print(sigOk); SerialLog.print("/"); SerialLog.println(sigFail);
 }
 
 void goOfflineCleanly() {
@@ -393,15 +395,15 @@ void handleCommand(String line) {
   if (line == "HELP")   { printHelp(); return; }
   if (line == "STATUS") { printStatus(); return; }
   if (line == "PUB") {
-    if (!mqtt.connected()) { Serial.println("ERR not connected to the broker"); return; }
+    if (!mqtt.connected()) { SerialLog.println("ERR not connected to the broker"); return; }
     if (publishTelemetry()) pubOk++; else pubFail++;
     return;
   }
   if (line == "PUBKEY") {
-    if (!eccSigning) { Serial.println("ERR no device key (chip missing or not provisioned)"); return; }
+    if (!eccSigning) { SerialLog.println("ERR no device key (chip missing or not provisioned)"); return; }
     char hex[129];
     toHex(devicePubKey, 64, hex);
-    Serial.println(hex);
+    SerialLog.println(hex);
     return;
   }
   if (line == "CA WRONG" || line == "CA GOOD") {
@@ -411,12 +413,12 @@ void handleCommand(String line) {
     configureMqtt();
     backoffMs = BACKOFF_START_MS;
     lastMqttTry = millis() - backoffMs;   // try again right away
-    Serial.println("OK reconnecting with the selected CA");
+    SerialLog.println("OK reconnecting with the selected CA");
     return;
   }
-  if (line == "FORGET") { goOfflineCleanly(); forgetCredentials(); Serial.println("Rebooting..."); ESP.restart(); return; }
-  if (line == "PROVISION") { goOfflineCleanly(); runProvisioning(); Serial.println("Rebooting..."); ESP.restart(); return; }
-  Serial.println("ERR unknown command. Type HELP");
+  if (line == "FORGET") { goOfflineCleanly(); forgetCredentials(); SerialLog.println("Rebooting..."); ESP.restart(); return; }
+  if (line == "PROVISION") { goOfflineCleanly(); runProvisioning(); SerialLog.println("Rebooting..."); ESP.restart(); return; }
+  SerialLog.println("ERR unknown command. Type HELP");
 }
 
 void pollConsole() {
@@ -439,7 +441,7 @@ void setup() {
   pinMode(IoTPins::POT_ADC, INPUT);
 
   bmpOk = bmp.begin(IoTPins::BMP280_ADDR);
-  Serial.println(bmpOk ? "BMP280 OK at 0x76" : "BMP280 not found (temp/pressure will be null)");
+  SerialLog.println(bmpOk ? "BMP280 OK at 0x76" : "BMP280 not found (temp/pressure will be null)");
   petBegin();
 
   initSecureElement();
@@ -449,7 +451,7 @@ void setup() {
   snprintf(idbuf, sizeof idbuf, "iot-%s-%08lX", TEAM_ID, (unsigned long)(chip & 0xFFFFFFFF));
   clientId = idbuf;
 
-  Serial.println("Type PROVISION (new credentials) or FORGET (erase) within 3 s...");
+  SerialLog.println("Type PROVISION (new credentials) or FORGET (erase) within 3 s...");
   iotDisplayLines("Lab 6 harden", "PROVISION/FORGET?", "(3 s, Serial)");
   String cmd = iotReadLine(3000);
   cmd.toUpperCase();
@@ -457,11 +459,11 @@ void setup() {
 
   bool haveCreds = loadCredentials();
   if (cmd == "PROVISION" || !haveCreds) {
-    if (!haveCreds) Serial.println("No credentials in NVS yet.");
+    if (!haveCreds) SerialLog.println("No credentials in NVS yet.");
     iotDisplayLines("Lab 6 harden", "Provisioning:", "use Serial Monitor");
     runProvisioning();
   } else {
-    Serial.println("Credentials loaded from NVS:");
+    SerialLog.println("Credentials loaded from NVS:");
     printCredentials();
   }
 
