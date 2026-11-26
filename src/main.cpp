@@ -14,15 +14,6 @@
 #include "iot_ca_certs.h"
 #include "interact.h"
 
-// Lab 6 STARTER. Harden It. Complete TODOs 1-6 (TODO 1 is in include/iot_ca_certs.h).
-// Starts from Lab 5 (BMP280 + pot -> HiveMQ Cloud, MQTT over TLS, credentials in NVS,
-// Last Will on iot/<TEAM_ID>/status) and hardens it:
-//   Part A: TLS with the broker certificate VERIFIED against ISRG Root X1 (setCACert).
-//   Part B: credentials stay in NVS, typed once over Serial, never in the repository.
-//   Part C: every reading is signed with the device key inside the ATECC608A (slot 0).
-//           This code only READS the chip's configuration. It never writes the config zone
-//           and never locks anything: a chip that is not provisioned is reported, not "fixed".
-//
 // Topics (replace T00 with your team ID):
 //   iot/T00/telemetry      JSON, every PERIOD_MS (the exact bytes that get signed)
 //   iot/T00/telemetry/sig  {"seq":42,"alg":"ES256","sig":"<128 hex chars = r||s>"}
@@ -40,7 +31,7 @@ constexpr uint16_t MQTT_KEEPALIVE_S = 15;
 constexpr uint32_t WIFI_RETRY_MS    = 20000;
 constexpr uint32_t BACKOFF_START_MS = 1000;
 constexpr uint32_t BACKOFF_MAX_MS   = 30000;
-constexpr uint32_t PERIOD_MS        = 10000;   // same rate as Lab 5 (justified there)
+constexpr uint32_t PERIOD_MS        = 10000;
 
 // ---------------- Globals ----------------
 struct Credentials {
@@ -89,7 +80,7 @@ void toHex(const uint8_t* data, size_t len, char* out) {
 }
 
 // ============================================================================================
-// Part B: credentials in NVS (from Lab 5, unchanged)
+// Credentials in NVS
 // ============================================================================================
 
 bool loadCredentials() {
@@ -151,19 +142,16 @@ void runProvisioning() {
 }
 
 // ============================================================================================
-// Part A: MQTT over TLS, broker certificate verified
+// MQTT over TLS, broker certificate verified
 // ============================================================================================
 
 void configureMqtt() {
-  // TODO 1 is in include/iot_ca_certs.h: the DigiCert Global Root CA certificate (PEM).
-
-  // TODO 2: verify the broker. Give the TLS socket the root CA that signed the broker's
-  //         chain with net.setCACert(...). Delete the Lab 5 insecure line completely.
-  //         The ESP32 then checks the chain up to this root AND that the certificate name
-  //         matches creds.mqttHost. If either check fails, the handshake fails.
-  //         Use WRONG_CA_PEM instead when useWrongCa is true (console command CA WRONG),
-  //         and print which CA you are using.
-  // From Lab 5: encrypted but the broker is NOT verified. Replace this line.
+  // Verify the broker. Give the TLS socket the root CA that signed the broker's
+  // chain.
+  // The ESP32 then checks the chain up to this root AND that the certificate name
+  // matches creds.mqttHost. If either check fails, the handshake fails.
+  // Use WRONG_CA_PEM instead when useWrongCa is true (console command CA WRONG),
+  // and print the CA that is being used.
   if (useWrongCa) {
     Serial.println("TLS: verifying the broker with the WRONG CA (ISRG Root X1): expect a failure");
     net.setCACert(WRONG_CA_PEM);
@@ -261,7 +249,7 @@ void maintainMqtt() {
 }
 
 // ============================================================================================
-// Part C: device key on the ATECC608A (read-only use, never lock anything)
+// Device key on the ATECC608A (read-only use, never lock anything)
 // ============================================================================================
 
 void initSecureElement() {
@@ -270,15 +258,8 @@ void initSecureElement() {
     return;
   }
 
-  // TODO 3: read the configuration zone (a READ, it changes nothing) with
-  //         atecc.readConfigZone(false), then check atecc.configLockStatus and
-  //         atecc.dataOTPLockStatus. If either is false, print exactly
-  //         "ATECC608A NOT PROVISIONED — ask a TA (do not lock it yourself)" and return.
-  //         NEVER call writeConfigSparkFun(), lockConfig(), lockDataAndOTP(), lockDataSlot0(),
-  //         lock() or createNewKeyPair(): locking is permanent and the kit is reused.
-  //         Also print the serial number (atecc.serialNumber, SERIAL_NUMBER_SIZE bytes, use toHex)
-  //         and the three lock flags (configLockStatus, dataOTPLockStatus, slot0LockStatus).
-  //         Replace the two placeholder lines below.
+  // Read the configuration zone, then check atecc.configLockStatus and
+  // atecc.dataOTPLockStatus.
   if (!atecc.readConfigZone(false)) {
     Serial.println("ATECC608A configuration zone read failed. Continuing without signing.");
     return;
@@ -300,10 +281,9 @@ void initSecureElement() {
     return;
   }
 
-  // TODO 4: read the public key that matches the private key in slot 0 with
-  //         atecc.generatePublicKey(0, false). It lands in atecc.publicKey64Bytes (X||Y).
-  //         Copy it to devicePubKey, print it as hex, and set eccSigning = true.
-  //         (generatePublicKey computes the public half; the private key never leaves the chip.)
+  // Read the public key that matches the private key in slot 0.
+  // Copy it to devicePubKey, print it as hex, and set eccSigning = true.
+  // (generatePublicKey computes the public half; the private key never leaves the chip.)
   if (!atecc.generatePublicKey(0, false)) {
     Serial.println("ATECC608A public key read failed. Continuing without signing.");
     return;
@@ -319,9 +299,8 @@ void initSecureElement() {
 
 // Sign the exact payload bytes. sigHex needs 129 chars. Returns false on any error.
 bool signPayload(const char* payload, char* sigHex) {
-  // TODO 5: hash the payload: SHA-256 over strlen(payload) bytes into digest[32], with
-  //         mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), in, len, digest).
-  //         It returns 0 on success.
+  // Hash the payload: SHA-256 over strlen(payload) bytes into digest[32].
+  // Returns 0 on success.
   uint8_t digest[32] = {0};
   if (payload == nullptr || sigHex == nullptr ||
       mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
@@ -329,8 +308,8 @@ bool signPayload(const char* payload, char* sigHex) {
     return false;
   }
 
-  // TODO 6: let the chip sign the digest with the slot 0 key: atecc.createSignature(digest, 0).
-  //         The 64-byte signature (r||s) is in atecc.signature; convert it to hex in sigHex.
+  // Let the chip sign the digest with the slot 0 key: atecc.createSignature(digest, 0).
+  // The 64-byte signature (r||s) is in atecc.signature; convert it to hex in sigHex.
   if (!atecc.createSignature(digest, 0)) return false;
   toHex(atecc.signature, 64, sigHex);
   return true;
